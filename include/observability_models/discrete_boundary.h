@@ -1,6 +1,7 @@
 #pragma once
 
 #include "observability_model.h"
+#include <vector>
 
 class DiscreteBoundary : public ObservabilityModel {
 private:
