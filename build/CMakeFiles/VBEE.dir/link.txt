@@ -1,0 +1,2 @@
+/usr/bin/ar qc libVBEE.a CMakeFiles/VBEE.dir/src/observability_models/discrete_boundary.cc.o CMakeFiles/VBEE.dir/src/instance.cc.o CMakeFiles/VBEE.dir/src/vbee_manager.cc.o
+/usr/bin/ranlib libVBEE.a

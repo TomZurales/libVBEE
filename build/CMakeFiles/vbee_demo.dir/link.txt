@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/vbee_demo.dir/src/main.cc.o -o vbee_demo  libVBEE.a 

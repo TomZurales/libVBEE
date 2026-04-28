@@ -32,6 +32,8 @@ static float map_value(float value, float from_min, float from_max, float to_min
     return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
 }
 
+namespace VBEE {
+
 DiscreteBoundary::DiscreteBoundary(int k, float ambiguous_range)
     : k(k), ambiguous_range(ambiguous_range),
       max_seen(20, 0.0f), min_unseen(20, INFINITY),
@@ -50,9 +52,9 @@ float DiscreteBoundary::query(const Eigen::Vector3f& position) const {
     return 0.0f;
 }
 
-float DiscreteBoundary::update(const std::tuple<Eigen::Vector3f, bool>& observation) {
-    const Eigen::Vector3f& pos = std::get<0>(observation);
-    bool obs = std::get<1>(observation);
+float DiscreteBoundary::update(const Observation& observation) {
+    const Eigen::Vector3f& pos = observation.viewpoint;
+    bool obs = observation.seen;
     float r = pos.norm();
     int b = _select_bin(pos);
 
@@ -86,6 +88,26 @@ float DiscreteBoundary::update(const std::tuple<Eigen::Vector3f, bool>& observat
     return getObservability();
 }
 
+void DiscreteBoundary::merge(std::shared_ptr<ObservabilityModel> other) {
+    auto* o = static_cast<DiscreteBoundary*>(other.get());
+    for (int b = 0; b < 20; ++b) {
+        min_unseen[b] = std::min(min_unseen[b], o->min_unseen[b]);
+        max_seen[b]   = std::max(max_seen[b],   o->max_seen[b]);
+        bin_ambiguous[b] = (bin_ambiguous[b] + o->bin_ambiguous[b]) / 2;
+
+        if (min_unseen[b] < max_seen[b]) {
+            float s1_vol = BIN_VOL_COEFF * std::pow(min_unseen[b], 3);
+            float s2_vol = BIN_VOL_COEFF * std::pow(max_seen[b], 3) - s1_vol;
+            float amb = map_value(bin_ambiguous[b], 0, 2 * k,
+                                  0.5f - ambiguous_range / 2.0f,
+                                  0.5f + ambiguous_range / 2.0f);
+            bin_observabilities[b] = s1_vol + amb * s2_vol;
+        } else {
+            bin_observabilities[b] = BIN_VOL_COEFF * std::pow(max_seen[b], 3);
+        }
+    }
+}
+
 float DiscreteBoundary::getObservability() const {
     return std::accumulate(bin_observabilities.begin(), bin_observabilities.end(), 0.0f);
 }
@@ -103,3 +125,5 @@ int DiscreteBoundary::_select_bin(const Eigen::Vector3f& position) const {
     }
     return best;
 }
+
+} // namespace VBEE

@@ -1,27 +1,26 @@
-#include "vbee.h"
+#include "instance.h"
 #include <cmath>
 #include <algorithm>
 
-VBEE::VBEE(const Eigen::Vector3f& position,
-           std::shared_ptr<ObservabilityModel> obs_model,
-           float false_negative_rate, float false_positive_rate)
-    : obs_model(std::move(obs_model)), position(position), _pe(0.9f),
-      false_negative_rate(false_negative_rate), false_positive_rate(false_positive_rate) {}
+namespace VBEE {
 
-float VBEE::step(const std::vector<std::tuple<Eigen::Vector3f, bool>>& observations) {
+Instance::Instance(std::shared_ptr<ObservabilityModel> obs_model,
+                   float false_negative_rate, float false_positive_rate, float n_eff)
+    : obs_model(std::move(obs_model)), _pe(0.9f),
+      false_negative_rate(false_negative_rate), false_positive_rate(false_positive_rate),
+      n_eff(n_eff) {}
+
+float Instance::step(const std::vector<Observation>& observations) {
     float prior_observability = obs_model->getObservability();
     std::vector<std::pair<float, float>> neg_obs_data;
     int positive_count = 0;
 
     for (const auto& obs : observations) {
-        const Eigen::Vector3f& pos = std::get<0>(obs);
-        bool seen = std::get<1>(obs);
-
-        if (seen) {
+        if (obs.seen) {
             ++positive_count;
             obs_model->update(obs);
         } else {
-            float query_val = obs_model->query(pos);
+            float query_val = obs_model->query(obs.viewpoint);
             float posterior_observability = obs_model->update(obs);
             float impact = (prior_observability == 0.0f)
                 ? 1.0f
@@ -39,8 +38,9 @@ float VBEE::step(const std::vector<std::tuple<Eigen::Vector3f, bool>>& observati
         for (const auto& [q, impact] : neg_obs_data)
             total_neg_impact += impact;
 
+        float effective_obs = std::min(static_cast<float>(neg_obs_data.size()), n_eff);
         for (const auto& [q, impact] : neg_obs_data)
-            log_L += (impact / total_neg_impact) * std::log(1.0f - (1.0f - false_negative_rate) * q);
+            log_L += effective_obs * (impact / total_neg_impact) * std::log(1.0f - (1.0f - false_negative_rate) * q);
     }
 
     float L = std::exp(log_L);
@@ -48,6 +48,13 @@ float VBEE::step(const std::vector<std::tuple<Eigen::Vector3f, bool>>& observati
     return _pe;
 }
 
-float VBEE::query(const Eigen::Vector3f& position) const {
+void Instance::merge(Instance& other) {
+    _pe = std::max(_pe, other._pe);
+    obs_model->merge(other.obs_model);
+}
+
+float Instance::query(const Eigen::Vector3f& position) const {
     return obs_model->query(position);
 }
+
+} // namespace VBEE

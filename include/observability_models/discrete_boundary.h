@@ -1,7 +1,10 @@
 #pragma once
 
 #include "observability_model.h"
+#include <memory>
 #include <vector>
+
+namespace VBEE {
 
 class DiscreteBoundary : public ObservabilityModel {
 private:
@@ -16,6 +19,9 @@ private:
 public:
     DiscreteBoundary(int k, float ambiguous_range);
     float query(const Eigen::Vector3f& position) const override;
-    float update(const std::tuple<Eigen::Vector3f, bool>& observation) override;
+    float update(const Observation& observation) override;
     float getObservability() const override;
+    void merge(std::shared_ptr<ObservabilityModel> other) override;
 };
+
+} // namespace VBEE
